@@ -18,14 +18,24 @@ type OrderFetcher struct {
 	DB *sql.DB
 }
 
-// конструктор класса
+// конструктор класса OrderFetcher
 func NewOrderFetcher(db *sql.DB) *OrderFetcher {
 	return &OrderFetcher{DB: db}
 }
 
+// класс ответственный за вывод данных
+type ResultPrinter struct {
+	requiredItems [][]string
+}
+
+// конструктор класса ResultPrinter
+func NewResultPrinter(requiredItems [][]string) *ResultPrinter {
+	return &ResultPrinter{requiredItems: requiredItems}
+}
+
 // функция выполняет запрос в бд и возвращает выборку данных о продуктах в заказе
 // в формате [[itemId, orderId, itemQuantity], [...]]
-func (of *OrderFetcher) FetchRequiredItems(orderIds []string) ([][]string, error) {
+func (of *OrderFetcher) fetchRequiredItems(orderIds []string) ([][]string, error) {
 	// валидация параметров
 	if len(orderIds) < 1 {
 		return nil, fmt.Errorf("необходимо ввести хоть один параметр")
@@ -74,7 +84,7 @@ func (of *OrderFetcher) FetchRequiredItems(orderIds []string) ([][]string, error
 // функция выполняет запрос в бд, дополняет существующую выборку новыми данными и
 // возвращает выборку данных о продуктах в заказе
 // в формате [[itemId, orderId, itemQuantity, itemName], [...]]
-func (of *OrderFetcher) FetchItemNames(itemIds []string, requiredItems [][]string) ([][]string, error) {
+func (of *OrderFetcher) fetchItemNames(itemIds []string, requiredItems [][]string) ([][]string, error) {
 	// валидация параметров
 	if len(itemIds) < 1 {
 		return nil, fmt.Errorf("необходимо ввести хоть один параметр")
@@ -127,7 +137,7 @@ func (of *OrderFetcher) FetchItemNames(itemIds []string, requiredItems [][]strin
 // функция выполняет запрос в бд, дополняет существующую выборку новыми данными и
 // возвращает выборку данных о продуктах в заказе
 // в формате [[itemId, orderId, itemQuantity, itemName, itemSubRack1 itemSubRack2..., itemMainRack], [...]]
-func (of *OrderFetcher) FetchItemsRacks(itemIds []string, requiredItems [][]string) ([][]string, error) {
+func (of *OrderFetcher) fetchItemsRacks(itemIds []string, requiredItems [][]string) ([][]string, error) {
 	// валидация параметров
 	if len(itemIds) < 1 {
 		return nil, fmt.Errorf("необходимо ввести хоть один параметр")
@@ -230,9 +240,9 @@ func (of *OrderFetcher) FetchItemsRacks(itemIds []string, requiredItems [][]stri
 
 // функция печатает конечный результат на основе структуры данных в формате
 // [[itemId, orderId, itemQuantity, itemName, itemSubRack1 itemSubRack2..., itemMainRack], [...]]
-func printResult(requiredItems [][]string) {
+func (of *ResultPrinter) printResult() error {
 	currRack := ""
-	for _, values := range requiredItems {
+	for _, values := range of.requiredItems {
 		if currRack != values[len(values)-1] {
 			fmt.Printf("===== Стеллаж %v:\n", values[len(values)-1])
 		}
@@ -244,6 +254,7 @@ func printResult(requiredItems [][]string) {
 		}
 		println()
 	}
+	return nil
 }
 
 func main() {
@@ -273,7 +284,7 @@ func main() {
 	orderFetcher := NewOrderFetcher(db)
 
 	// вызов метода FetchRequiredItems для выполнения запроса и хранения результатов
-	requiredItems, err := orderFetcher.FetchRequiredItems(orderIds)
+	requiredItems, err := orderFetcher.fetchRequiredItems(orderIds)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -286,20 +297,26 @@ func main() {
 			itemIDs = append(itemIDs, values[0])
 		}
 	}
-	requiredItems, err = orderFetcher.FetchItemNames(itemIDs, requiredItems)
+	requiredItems, err = orderFetcher.fetchItemNames(itemIDs, requiredItems)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// вызов метода FetchItemRacks для выполнения запроса и дополнения структуры данных
-	requiredItems, err = orderFetcher.FetchItemsRacks(itemIDs, requiredItems)
+	requiredItems, err = orderFetcher.fetchItemsRacks(itemIDs, requiredItems)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// начало вывода
+	// создание объекта класса ResultPrinter
+	resultPrinter := NewResultPrinter(requiredItems)
+
 	// вывод заголовка
 	fmt.Printf("=+=+=+=\nСтраница сборки заказов %s\n", os.Args[1])
 	// вывод данных
-	printResult(requiredItems)
+	err = resultPrinter.printResult()
+	if err != nil {
+		log.Fatal(err)
+	}
 }
